@@ -1,0 +1,19 @@
+name: NBForge
+options:
+  bundleIdPrefix: com.nb.forge
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  NBForge:
+    type: application
+    platform: iOS
+    sources:
+      - path: NBForge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nb.forge.ios
+        INFOPLIST_FILE: NBForge/Info.plist
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO

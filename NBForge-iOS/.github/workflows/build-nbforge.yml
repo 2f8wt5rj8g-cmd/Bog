@@ -1,0 +1,33 @@
+name: Build NBForge iOS IPA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: NBForge-iOS
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project NBForge.xcodeproj -scheme NBForge \
+            -configuration Release -sdk iphoneos \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Package IPA
+        run: |
+          APP=$(find build/dd/Build/Products -name "NBForge.app" -type d | head -1)
+          mkdir -p build/Payload && cp -R "$APP" build/Payload/
+          cd build && zip -r NBForge.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NBForge-unsigned
+          path: NBForge-iOS/build/NBForge.ipa
+          retention-days: 7
