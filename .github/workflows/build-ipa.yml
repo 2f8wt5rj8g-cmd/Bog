@@ -1,0 +1,58 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Show project
+        run: ls -la && xcodebuild -list -project BFGCalibration.xcodeproj
+
+      - name: Build (no codesign)
+        run: |
+          set -e
+          xcodebuild build \
+            -project BFGCalibration.xcodeproj \
+            -scheme BFGCalibration \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            | xcpretty || exit ${PIPESTATUS[0]}
+
+      - name: Package IPA
+        run: |
+          set -e
+          APP_PATH=$(find build/dd/Build/Products -name "BFGCalibration.app" -type d | head -1)
+          echo "Found app at: $APP_PATH"
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -r BFGCalibration.ipa Payload
+          ls -lh BFGCalibration.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BFGCalibration-unsigned
+          path: build/BFGCalibration.ipa
+          retention-days: 7

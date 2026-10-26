@@ -1,0 +1,24 @@
+name: BFGCalibration
+options:
+  bundleIdPrefix: com.bfgtools
+  deploymentTarget:
+    iOS: "15.0"
+  developmentLanguage: zh-Hans
+targets:
+  BFGCalibration:
+    type: application
+    platform: iOS
+    sources:
+      - path: BFGCalibration
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bfgtools.calibration.ios
+        INFOPLIST_FILE: BFGCalibration/Info.plist
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_BITCODE: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_IDENTITY: ""
