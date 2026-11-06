@@ -15,42 +15,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
-
-      - name: Compile dylib
+      - name: Install Theos
         run: |
-          set -e
+          brew install ldid make
+          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
+          sudo chown -R $(whoami) /opt/theos
+
+      - name: Build deb with Theos
+        env:
+          THEOS: /opt/theos
+        run: |
           cd xd_tweak
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          echo "SDK: $SDK"
-          clang -arch arm64 -dynamiclib \
-            -isysroot "$SDK" \
-            -miphoneos-version-min=14.0 \
-            -fobjc-arc \
-            -framework UIKit -framework Foundation \
-            -install_name @executable_path/Frameworks/XDVipCrack.dylib \
-            -o XDVipCrack.dylib Tweak.mm
-          echo "=== otool -L ==="
-          otool -L XDVipCrack.dylib
+          make package
 
-      - name: Build deb
+      - name: Copy dylib and CydiaSubstrate
         run: |
-          set -e
-          mkdir -p deb/DEBIAN deb/Library/MobileSubstrate/DynamicLibraries
-          cp xd_tweak/XDVipCrack.dylib deb/Library/MobileSubstrate/DynamicLibraries/
-          printf '{\n  "Filter": {\n    "Bundles": ["com.youloft.icloser"],\n    "Executables": ["Distance"]\n  }\n}\n' > deb/Library/MobileSubstrate/DynamicLibraries/XDVipCrack.plist
-          printf 'Package: com.youloft.icloser.vipcrack\nName: Xindong VIP Crack\nVersion: 1.0\nArchitecture: iphoneos-arm\nDescription: Bypass VIP\nMaintainer: LJ\nSection: Tweaks\nPriority: optional\n' > deb/DEBIAN/control
-          dpkg-deb --build deb XDVipCrack.deb
+          mkdir -p output
+          cp xd_tweak/packages/*.deb output/XDVipCrack.deb
+          # 找到编译好的 dylib
+          find xd_tweak -name '*.dylib' -exec cp {} output/XDVipCrack.dylib \;
+          # 复制 CydiaSubstrate
+          cp /opt/theos/lib/CydiaSubstrate.framework/CydiaSubstrate output/CydiaSubstrate.dylib
+          ls -la output/
 
       - name: Push output
         run: |
-          set -e
-          mkdir -p output
-          cp xd_tweak/XDVipCrack.dylib output/
-          cp XDVipCrack.deb output/
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/
-          git diff --staged --quiet || git commit -m "Add built dylib and deb"
+          git diff --staged --quiet || git commit -m "Add built dylib + CydiaSubstrate"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
