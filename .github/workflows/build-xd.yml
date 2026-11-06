@@ -15,29 +15,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Theos
-        run: |
-          brew install ldid make
-          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
-          sudo chown -R $(whoami) /opt/theos
-
-      - name: Build deb
-        env:
-          THEOS: /opt/theos
+      - name: Compile dylib with clang
         run: |
           cd xd_tweak
-          make package
+          clang -arch arm64 -dynamiclib \
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -miphoneos-version-min=14.0 \
+            -fobjc-arc \
+            -framework UIKit -framework Foundation \
+            -install_name @executable_path/Frameworks/XDVipCrack.dylib \
+            -o XDVipCrack.dylib Tweak.mm
+          ls -la XDVipCrack.dylib
+          otool -L XDVipCrack.dylib
 
-      - name: Copy deb to output
+      - name: Build deb
+        run: |
+          mkdir -p deb/DEBIAN deb/Library/MobileSubstrate/DynamicLibraries
+          cp xd_tweak/XDVipCrack.dylib deb/Library/MobileSubstrate/DynamicLibraries/
+          echo '{
+            "Filter": {
+              "Bundles": ["com.youloft.icloser"],
+              "Executables": ["Distance"]
+            }
+          }' > deb/Library/MobileSubstrate/DynamicLibraries/XDVipCrack.plist
+          echo 'Package: com.youloft.icloser.vipcrack
+Name: Xindong VIP Crack
+Version: 1.0
+Architecture: iphoneos-arm
+Description: Bypass VIP check
+Maintainer: LJ
+Section: Tweaks
+Priority: optional' > deb/DEBIAN/control
+          dpkg-deb --build deb XDVipCrack.deb
+          ls -la XDVipCrack.deb
+
+      - name: Copy output
         run: |
           mkdir -p output
-          cp xd_tweak/packages/*.deb output/XDVipCrack.deb
-          ls -la output/
+          cp xd_tweak/XDVipCrack.dylib output/
+          cp XDVipCrack.deb output/
 
-      - name: Push deb back to repo
+      - name: Push back
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add output/XDVipCrack.deb
-          git diff --staged --quiet || git commit -m "Add built XDVipCrack.deb"
+          git add output/
+          git diff --staged --quiet || git commit -m "Add built dylib and deb"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
