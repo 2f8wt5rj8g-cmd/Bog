@@ -1,52 +1,51 @@
 #import <UIKit/UIKit.h>
-#import <Foundation/Foundation.h>
+#import <objc/runtime.h>
 
-// ========== 1. swizzle NSUserDefaults ==========
-%hook NSUserDefaults
-- (id)objectForKey:(NSString *)key {
-    id orig = %orig;
+static BOOL isVIPKey(NSString *key) {
     NSString *k = [key lowercaseString];
-    if ([k containsString:@"vip"] || [k containsString:@"member"] ||
-        [k containsString:@"expire"] || [k containsString:@"auth"] ||
-        [k containsString:@"paid"] || [k containsString:@"purchas"]) {
-        if ([k containsString:@"expire"] || [k containsString:@"time"] || [k containsString:@"date"]) {
+    return [k containsString:@"vip"] || [k containsString:@"member"] ||
+           [k containsString:@"auth"] || [k containsString:@"paid"] ||
+           [k containsString:@"unlock"] || [k containsString:@"purchas"];
+}
+
+// --- hook boolForKey: ---
+static BOOL (*orig_boolForKey)(id, SEL, NSString*);
+static BOOL hook_boolForKey(id self, SEL _cmd, NSString *key) {
+    if (isVIPKey(key)) return YES;
+    return orig_boolForKey(self, _cmd, key);
+}
+
+// --- hook objectForKey: ---
+static id (*orig_objectForKey)(id, SEL, NSString*);
+static id hook_objectForKey(id self, SEL _cmd, NSString *key) {
+    if (isVIPKey(key)) {
+        if ([[key lowercaseString] containsString:@"expire"] ||
+            [[key lowercaseString] containsString:@"time"] ||
+            [[key lowercaseString] containsString:@"date"]) {
             return @9999999999;
         }
-        if ([k containsString:@"vip"] || [k containsString:@"member"] || [k containsString:@"auth"]) {
-            return @YES;
-        }
+        return @YES;
     }
-    return orig;
+    return orig_objectForKey(self, _cmd, key);
 }
-- (BOOL)boolForKey:(NSString *)key {
-    NSString *k = [key lowercaseString];
-    if ([k containsString:@"vip"] || [k containsString:@"member"] ||
-        [k containsString:@"paid"] || [k containsString:@"unlock"] ||
-        [k containsString:@"auth"] || [k containsString:@"purchas"]) {
-        return YES;
-    }
-    return %orig;
-}
-- (NSInteger)integerForKey:(NSString *)key {
-    NSString *k = [key lowercaseString];
-    if ([k containsString:@"vip"] || [k containsString:@"member"] ||
-        [k containsString:@"level"] || [k containsString:@"days"]) {
-        return 999;
-    }
-    return %orig;
-}
-- (double)doubleForKey:(NSString *)key {
-    NSString *k = [key lowercaseString];
-    if ([k containsString:@"expire"] || [k containsString:@"vip"] || [k containsString:@"time"]) {
-        return 9999999999;
-    }
-    return %orig;
-}
-%end
 
-// ========== 2. hook NSMutableDictionary JSON ==========
-%hook NSMutableDictionary
-- (void)setObject:(id)obj forKeyedSubscript:(id)key {
+// --- hook integerForKey: ---
+static NSInteger (*orig_integerForKey)(id, SEL, NSString*);
+static NSInteger hook_integerForKey(id self, SEL _cmd, NSString *key) {
+    if (isVIPKey(key)) return 999;
+    return orig_integerForKey(self, _cmd, key);
+}
+
+// --- hook doubleForKey: ---
+static double (*orig_doubleForKey)(id, SEL, NSString*);
+static double hook_doubleForKey(id self, SEL _cmd, NSString *key) {
+    if (isVIPKey(key) || [[key lowercaseString] containsString:@"expire"]) return 9999999999;
+    return orig_doubleForKey(self, _cmd, key);
+}
+
+// --- hook setObject:forKeyedSubscript: ---
+static void (*orig_setObjectSub)(id, SEL, id, id<NSCopying>);
+static void hook_setObjectSub(id self, SEL _cmd, id obj, id<NSCopying> key) {
     if ([key isKindOfClass:[NSString class]]) {
         NSString *k = [(NSString *)key lowercaseString];
         if (([k isEqualToString:@"isvip"] || [k isEqualToString:@"is_vip"] ||
@@ -55,39 +54,41 @@
             [obj isKindOfClass:[NSNumber class]]) {
             obj = @YES;
         }
-        if (([k containsString:@"expire"] || [k containsString:@"vipend"] ||
-             [k containsString:@"endtime"]) &&
+        if (([k containsString:@"expire"] || [k containsString:@"endtime"]) &&
             [obj isKindOfClass:[NSNumber class]]) {
             obj = @9999999999;
         }
     }
-    %orig;
+    orig_setObjectSub(self, _cmd, obj, key);
 }
-%end
 
-// ========== 3. 拦截 VIP 弹窗 ==========
-%hook UIAlertController
-- (void)viewDidAppear:(BOOL)animated {
-    NSString *title = [self valueForKey:@"title"];
-    NSString *message = [self valueForKey:@"message"];
-    if ((title && ([title containsString:@"VIP"] || [title containsString:@"会员"] ||
-                   [title containsString:@"开通"] || [title containsString:@"购买"] ||
-                   [title containsString:@"过期"] || [title containsString:@"解锁"])) ||
-        (message && ([message containsString:@"VIP"] || [message containsString:@"会员"] ||
-                     [message containsString:@"开通"] || [message containsString:@"购买"]))) {
-        [self dismissViewControllerAnimated:NO completion:nil];
-        return;
+static void swizzle(Class cls, SEL sel, IMP newImp, IMP *origImp) {
+    Method m = class_getInstanceMethod(cls, sel);
+    if (m) {
+        *origImp = method_setImplementation(m, newImp);
+        NSLog(@"[XDTweak] hooked %@ %@", NSStringFromClass(cls), NSStringFromSelector(sel));
     }
-    %orig;
 }
-%end
 
-%ctor {
-    NSLog(@"[XDTweak] loaded");
-    NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
-    [defs setBool:YES forKey:@"isVip"];
-    [defs setBool:YES forKey:@"bAuthVip"];
-    [defs setInteger:9999999999 forKey:@"vipExpireTime"];
-    [defs setInteger:9999999999 forKey:@"expireTime"];
-    [defs synchronize];
+__attribute__((constructor)) static void XDTweakInit() {
+    @autoreleasepool {
+        NSLog(@"[XDTweak] === 心动日常 VIP Crack loaded ===");
+        Class ud = objc_getClass("NSUserDefaults");
+        swizzle(ud, @selector(boolForKey:), (IMP)hook_boolForKey, (IMP*)&orig_boolForKey);
+        swizzle(ud, @selector(objectForKey:), (IMP)hook_objectForKey, (IMP*)&orig_objectForKey);
+        swizzle(ud, @selector(integerForKey:), (IMP)hook_integerForKey, (IMP*)&orig_integerForKey);
+        swizzle(ud, @selector(doubleForKey:), (IMP)hook_doubleForKey, (IMP*)&orig_doubleForKey);
+
+        Class md = objc_getClass("NSMutableDictionary");
+        swizzle(md, @selector(setObject:forKeyedSubscript:), (IMP)hook_setObjectSub, (IMP*)&orig_setObjectSub);
+
+        // 写入 VIP 状态
+        NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
+        [defs setBool:YES forKey:@"isVip"];
+        [defs setBool:YES forKey:@"bAuthVip"];
+        [defs setInteger:9999999999 forKey:@"vipExpireTime"];
+        [defs setInteger:9999999999 forKey:@"expireTime"];
+        [defs synchronize];
+        NSLog(@"[XDTweak] VIP state written");
+    }
 }

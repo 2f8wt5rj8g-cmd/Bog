@@ -8,5 +8,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = XDVipCrack
 XDVipCrack_FILES = Tweak.xm
 XDVipCrack_CFLAGS = -fobjc-arc
+# 不链接 CydiaSubstrate，纯 runtime swizzle
+XDVipCrack_FRAMEWORKS = UIKit Foundation
 
 include $(THEOS_MAKE_PATH)/tweak.mk
