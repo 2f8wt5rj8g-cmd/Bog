@@ -1,0 +1,27 @@
+name: Build XDTweak
+on:
+  push:
+    paths:
+      - 'xd_tweak/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Theos
+        run: |
+          git clone --recursive https://github.com/theos/theos.git /opt/theos
+
+      - name: Build deb
+        run: |
+          cd xd_tweak
+          make package THEOS=/opt/theos
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: xd-vipcrack-deb
+          path: xd_tweak/packages/*.deb

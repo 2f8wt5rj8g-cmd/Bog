@@ -1,0 +1,9 @@
+Package: com.youloft.icloser.vipcrack
+Name: Xindong VIP Crack
+Version: 1.0
+Architecture: iphoneos-arm
+Description: Bypass VIP check for Xindong Riqiang
+Maintainer: LJ
+Author: LJ
+Section: Tweaks
+Priority: optional

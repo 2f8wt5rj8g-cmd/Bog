@@ -1,0 +1,6 @@
+{
+  "Filter": {
+    "Bundles": ["com.youloft.icloser"],
+    "Executables": ["Distance"]
+  }
+}
