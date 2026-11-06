@@ -15,33 +15,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Theos
-        run: |
-          brew install ldid make
-          sudo git clone --recursive https://github.com/theos/theos.git /opt/theos
-          sudo chown -R $(whoami) /opt/theos
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
-      - name: Build deb with Theos
-        env:
-          THEOS: /opt/theos
+      - name: Compile
         run: |
+          set -e
           cd xd_tweak
-          make package
+          SDKPATH="/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
+          ls -la "$SDKPATH"
+          clang -arch arm64 -dynamiclib \
+            -isysroot "$SDKPATH" \
+            -miphoneos-version-min=14.0 \
+            -fobjc-arc \
+            -framework UIKit -framework Foundation \
+            -install_name @executable_path/Frameworks/XDVipCrack.dylib \
+            -o XDVipCrack.dylib Tweak.mm
+          otool -L XDVipCrack.dylib
 
-      - name: Copy dylib and CydiaSubstrate
+      - name: Push
         run: |
+          set -e
           mkdir -p output
-          cp xd_tweak/packages/*.deb output/XDVipCrack.deb
-          # 找到编译好的 dylib
-          find xd_tweak -name '*.dylib' -exec cp {} output/XDVipCrack.dylib \;
-          # 复制 CydiaSubstrate
-          cp /opt/theos/lib/CydiaSubstrate.framework/CydiaSubstrate output/CydiaSubstrate.dylib
-          ls -la output/
-
-      - name: Push output
-        run: |
+          cp xd_tweak/XDVipCrack.dylib output/
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add output/
-          git diff --staged --quiet || git commit -m "Add built dylib + CydiaSubstrate"
+          git diff --staged --quiet || git commit -m "Add substrate-free dylib"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
