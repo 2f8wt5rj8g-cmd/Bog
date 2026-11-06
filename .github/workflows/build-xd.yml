@@ -15,24 +15,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
       - name: Compile dylib
         run: |
+          set -e
           cd xd_tweak
-          clang -arch arm64 -dynamiclib -isysroot $(xcrun --sdk iphoneos --show-sdk-path) -miphoneos-version-min=14.0 -fobjc-arc -framework UIKit -framework Foundation -install_name @executable_path/Frameworks/XDVipCrack.dylib -o XDVipCrack.dylib Tweak.mm
-          ls -la XDVipCrack.dylib
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "SDK: $SDK"
+          clang -arch arm64 -dynamiclib \
+            -isysroot "$SDK" \
+            -miphoneos-version-min=14.0 \
+            -fobjc-arc \
+            -framework UIKit -framework Foundation \
+            -install_name @executable_path/Frameworks/XDVipCrack.dylib \
+            -o XDVipCrack.dylib Tweak.mm
+          echo "=== otool -L ==="
           otool -L XDVipCrack.dylib
 
       - name: Build deb
         run: |
+          set -e
           mkdir -p deb/DEBIAN deb/Library/MobileSubstrate/DynamicLibraries
           cp xd_tweak/XDVipCrack.dylib deb/Library/MobileSubstrate/DynamicLibraries/
           printf '{\n  "Filter": {\n    "Bundles": ["com.youloft.icloser"],\n    "Executables": ["Distance"]\n  }\n}\n' > deb/Library/MobileSubstrate/DynamicLibraries/XDVipCrack.plist
           printf 'Package: com.youloft.icloser.vipcrack\nName: Xindong VIP Crack\nVersion: 1.0\nArchitecture: iphoneos-arm\nDescription: Bypass VIP\nMaintainer: LJ\nSection: Tweaks\nPriority: optional\n' > deb/DEBIAN/control
           dpkg-deb --build deb XDVipCrack.deb
-          ls -la XDVipCrack.deb
 
       - name: Push output
         run: |
+          set -e
           mkdir -p output
           cp xd_tweak/XDVipCrack.dylib output/
           cp XDVipCrack.deb output/
